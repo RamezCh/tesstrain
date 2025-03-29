@@ -119,6 +119,9 @@ endif
 
 LOG_FILE = $(OUTPUT_DIR)/training.log
 
+# Folder containing multiple subfolders for gt generation. Default: $(INPUT_DIR)
+INPUT_DIR = images_in_subfolder_has_content_matching_folder_name
+
 # BEGIN-EVAL makefile-parser --make-help Makefile
 
 help:
@@ -138,6 +141,7 @@ help:
 	@echo "    clean-lstmf      Clean generated .lstmf files"
 	@echo "    clean-output     Clean generated output files"
 	@echo "    clean            Clean all generated files"
+	@echo "    generate-gt-from-folder-name  Generate .gt.txt files for images based on their parent folder names and organize them in the Tesseract training directory structure or the specified output directory"
 	@echo ""
 	@echo "  Variables"
 	@echo ""
@@ -177,7 +181,7 @@ endif
 
 .PRECIOUS: $(LAST_CHECKPOINT)
 
-.PHONY: clean help lists proto-model tesseract-langdata training unicharset charfreq
+.PHONY: clean help lists proto-model tesseract-langdata training unicharset charfreq generate-gt-from-folder-name
 
 ALL_FILES = $(and $(wildcard $(GROUND_TRUTH_DIR)),$(shell find -L $(GROUND_TRUTH_DIR) -name '*.gt.txt'))
 unexport ALL_FILES # prevent adding this to envp in recipes (which can cause E2BIG if too long; cf. make #44853)
@@ -193,6 +197,46 @@ charfreq: $(ALL_GT)
 
 # Create lists of lstmf filenames for training and eval
 lists: $(OUTPUT_DIR)/list.train $(OUTPUT_DIR)/list.eval
+
+# Generate .gt.txt files for images based on their parent folder names and organize them in the Tesseract training directory structure or the specified output directory
+generate-gt-from-folder-name:
+	@# -- Input validation
+	@if [ ! -d "$(INPUT_DIR)" ]; then \
+		echo "Error: Input directory '$(INPUT_DIR)' does not exist!" >&2; \
+		exit 1; \
+	fi
+
+	@# Count subdirectories
+	@NUM_SUBDIRS=$$(find "$(INPUT_DIR)" -mindepth 1 -maxdepth 1 -type d | wc -l); \
+	if [ $$NUM_SUBDIRS -eq 0 ]; then \
+		echo "Error: '$(INPUT_DIR)' must contain at least one subdirectory!" >&2; \
+		exit 1; \
+	fi
+
+	@# Count image files in subdirectories
+	@NUM_IMAGES=$$(find "$(INPUT_DIR)" -mindepth 2 -maxdepth 2 -type f \
+		\( -iname "*.jpg" -o -iname "*.png" -o -iname "*.jpeg" -o -iname "*.bmp" \) | wc -l); \
+	if [ $$NUM_IMAGES -eq 0 ]; then \
+		echo "Error: No valid images (JPG/PNG/JPEG/BMP) found in any subdirectory!" >&2; \
+		echo "       Searched in: $(INPUT_DIR)/*/" >&2; \
+		exit 1; \
+	fi
+
+	@# -- Create output directory
+	@mkdir -p "$(GROUND_TRUTH_DIR)"
+
+	@# -- Execute generation (silent mode)
+	@$(PY_CMD) generate_gt_from_folder.py \
+		"$(INPUT_DIR)" \
+		"$(GROUND_TRUTH_DIR)" \
+		$(if $(filter $(MAKEFLAGS),s),--quiet)
+
+	@# -- Verify output
+	@NUM_OUTPUT=$$(ls "$(GROUND_TRUTH_DIR)" | wc -l); \
+	if [ $$NUM_OUTPUT -eq 0 ]; then \
+		echo "Warning: No ground truth files were generated in '$(GROUND_TRUTH_DIR)'!" >&2; \
+		exit 1; \
+	fi
 
 $(OUTPUT_DIR):
 	@mkdir -p $@
