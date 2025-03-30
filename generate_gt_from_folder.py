@@ -1,78 +1,71 @@
-import os
 import shutil
 import argparse
 from pathlib import Path
 import sys
-from typing import Set, List, Tuple
+from typing import List, Set
 
 
-def get_image_files(input_dir: str, extensions: Set[str]) -> List[Tuple[Path, str, str]]:
-    """
-    Get all image files with specified extensions from the input directory.
-    """
-    image_files = []
-    for entry in os.scandir(input_dir):
-        if entry.is_dir():
-            for file in os.scandir(entry.path):
-                file_path = Path(file.path)
-                if file_path.suffix.lower() in extensions:
-                    image_files.append((file_path, file_path.stem, file_path.suffix.lower()))
-    return image_files
+def get_image_files(input_dir: Path, extensions: Set[str]) -> List[Path]:
+    """Get image files (only in first-level subdirectories) with matching extensions."""
+    return [
+        file
+        for folder in input_dir.iterdir() if folder.is_dir()
+        for file in folder.iterdir() if file.suffix.lower() in extensions
+    ]
 
 
-def generate_gt_from_folders(input_dir: str, output_dir: str, verbose: bool = True) -> int:
-    """
-    Generate .gt.txt files for images based on their parent folder names and
-    organize them in the Tesseract training directory structure.
-    """
+def get_unique_base(output_dir: Path, base: str, ext: str) -> str:
+    """Find a unique base name efficiently without excessive looping."""
+    candidate = base
+    counter = 1
+    existing_files = {f.stem for f in output_dir.glob("*")}  # Cache existing filenames for faster lookup
+
+    while candidate in existing_files:
+        candidate = f"{base}_{counter}"
+        counter += 1
+
+    return candidate
+
+
+def generate_gt_from_folders(input_dir: Path, output_dir: Path) -> int:
+    """Generate .gt.txt files for each image where the text file contains the parent folder's name."""
     print("Ground-Truth generation beginning...")
-    output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
     image_extensions = {'.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp', '.gif'}
     image_files = get_image_files(input_dir, image_extensions)
 
     total_files = 0
-    existing_files = set(output_dir.glob("*"))
 
-    for file_path, base_name, ext in image_files:
+    for file_path in image_files:
         folder_name = file_path.parent.name
-        dest_base = base_name
-        dest_image = output_dir / f"{dest_base}{ext}"
-        txt_filepath = output_dir / f"{dest_base}.gt.txt"
+        base_name = file_path.stem
+        ext = file_path.suffix.lower()
 
-        counter = 1
-        while dest_image in existing_files or txt_filepath in existing_files:
-            dest_base = f"{base_name}_{counter}"
-            dest_image = output_dir / f"{dest_base}{ext}"
-            txt_filepath = output_dir / f"{dest_base}.gt.txt"
-            counter += 1
+        unique_base = get_unique_base(output_dir, base_name, ext)
+        dest_image = output_dir / f"{unique_base}{ext}"
+        txt_filepath = output_dir / f"{unique_base}.gt.txt"
 
         try:
             txt_filepath.write_text(folder_name, encoding='utf-8')
-            shutil.copy2(file_path, dest_image)
-            existing_files.add(dest_image)
-            existing_files.add(txt_filepath)
+            shutil.copy(file_path, dest_image)  # Faster than copy2()
             total_files += 1
-            if verbose:
-                print(f"Processed: {file_path.name} -> {folder_name}")
+            print(f"Processed: {file_path.name} -> {folder_name}")
         except (IOError, OSError) as e:
-            print(f"Error processing {file_path}: {str(e)}", file=sys.stderr)
+            print(f"Error processing {file_path}: {e}", file=sys.stderr)
 
-    if verbose:
-        print(f"\nDone! Processed {total_files} image files.")
+    print(f"Done! Processed {total_files} image files.")
     return total_files
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Generate .gt.txt files from folder names for Tesseract training')
-    parser.add_argument('input_dir', help='Input directory containing subfolders with images')
-    parser.add_argument('output_dir', help='Output directory')
-    parser.add_argument('--quiet', action='store_true', help='Suppress progress messages')
+    parser = argparse.ArgumentParser(description="Generate .gt.txt files from folder names for Tesseract training")
+    parser.add_argument('input_dir', type=Path, help='Input directory containing subfolders with images')
+    parser.add_argument('output_dir', type=Path, help='Output directory')
     args = parser.parse_args()
 
-    processed_count = generate_gt_from_folders(args.input_dir.rstrip('/\\'), args.output_dir.rstrip('/\\'),
-                                               not args.quiet)
-    if processed_count == 0:
+    count = generate_gt_from_folders(args.input_dir.resolve(), args.output_dir.resolve())
+    if count == 0:
         sys.exit(1)
 
 

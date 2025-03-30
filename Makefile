@@ -198,42 +198,33 @@ charfreq: $(ALL_GT)
 # Create lists of lstmf filenames for training and eval
 lists: $(OUTPUT_DIR)/list.train $(OUTPUT_DIR)/list.eval
 
+# Supported image extensions
+IMAGE_EXTENSIONS=-iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o \
+                 -iname "*.tif" -o -iname "*.tiff" -o -iname "*.bmp" -o -iname "*.gif"
+
 # Generate .gt.txt files for images based on their parent folder names and organize them in the Tesseract training directory structure or the specified output directory
 generate-gt-from-folder-name:
-	@# -- Input validation
+	@# Check if INPUT_DIR exists
 	@if [ ! -d "$(INPUT_DIR)" ]; then \
 		echo "Error: Input directory '$(INPUT_DIR)' does not exist!" >&2; \
 		exit 1; \
 	fi
-
-	@# Count subdirectories
-	@NUM_SUBDIRS=$$(find "$(INPUT_DIR)" -mindepth 1 -maxdepth 1 -type d | wc -l); \
-	if [ $$NUM_SUBDIRS -eq 0 ]; then \
+	@# Check that at least one subdirectory exists
+	@if [ $$(find "$(INPUT_DIR)" -mindepth 1 -maxdepth 1 -type d | wc -l) -eq 0 ]; then \
 		echo "Error: '$(INPUT_DIR)' must contain at least one subdirectory!" >&2; \
 		exit 1; \
 	fi
-
-	@# Count image files in subdirectories
-	@NUM_IMAGES=$$(find "$(INPUT_DIR)" -mindepth 2 -maxdepth 2 -type f \
-		\( -iname "*.jpg" -o -iname "*.png" -o -iname "*.jpeg" -o -iname "*.bmp" \) | wc -l); \
-	if [ $$NUM_IMAGES -eq 0 ]; then \
-		echo "Error: No valid images (JPG/PNG/JPEG/BMP) found in any subdirectory!" >&2; \
-		echo "       Searched in: $(INPUT_DIR)/*/" >&2; \
+	@# Check for valid image files
+	@if [ $$(find "$(INPUT_DIR)" -mindepth 2 -maxdepth 2 -type f \( $(IMAGE_EXTENSIONS) \) | wc -l) -eq 0 ]; then \
+		echo "Error: No valid images found in any subdirectory of '$(INPUT_DIR)'!" >&2; \
 		exit 1; \
 	fi
-
-	@# -- Create output directory
+	@# Create the output directory if it does not exist
 	@mkdir -p "$(GROUND_TRUTH_DIR)"
-
-	@# -- Execute generation (silent mode)
-	@$(PY_CMD) generate_gt_from_folder.py \
-		"$(INPUT_DIR)" \
-		"$(GROUND_TRUTH_DIR)" \
-		$(if $(filter $(MAKEFLAGS),s),--quiet)
-
-	@# -- Verify output
-	@NUM_OUTPUT=$$(ls "$(GROUND_TRUTH_DIR)" | wc -l); \
-	if [ $$NUM_OUTPUT -eq 0 ]; then \
+	@# Execute the ground truth generation script
+	@$(PY_CMD) generate_gt_from_folder.py "$(INPUT_DIR)" "$(GROUND_TRUTH_DIR)"
+	@# Verify that output files were generated
+	@if [ $$(ls "$(GROUND_TRUTH_DIR)" | wc -l) -eq 0 ]; then \
 		echo "Warning: No ground truth files were generated in '$(GROUND_TRUTH_DIR)'!" >&2; \
 		exit 1; \
 	fi
