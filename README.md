@@ -220,7 +220,7 @@ As an example, use the training data provided in [ocrd-testset.zip](./ocrd-tests
 training and generate the plots:
 
     unzip ocrd-testset.zip -d data/ocrd-ground-truth
-    make training MODEL_NAME=ocrd START_MODEL=frk TESSDATA=~/tessdata_best MAX_ITERATIONS=10000 &
+    make training MODEL_NAME=ocrd START_MODEL=deu_latf TESSDATA=~/tessdata_best MAX_ITERATIONS=10000 &
     # Make data/ocrd/ocrd.plot_cer.png and plot_log.png (repeat during/after training)
     make plot MODEL_NAME=ocrd
 

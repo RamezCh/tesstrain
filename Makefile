@@ -391,10 +391,21 @@ endif
 # Build lstmeval files list based on respective best traineddata models
 BEST_LSTMEVAL_FILES = $(subst tessdata_best,eval,$(BESTMODEL_FILES:%.traineddata=%.eval.log))
 $(BEST_LSTMEVAL_FILES): $(OUTPUT_DIR)/eval/%.eval.log: $(OUTPUT_DIR)/tessdata_best/%.traineddata | $(OUTPUT_DIR)/eval
+ifeq ($(OS),Windows_NT)
+    # Windows with PowerShell timing
+	powershell -Command "Measure-Command { \
+		lstmeval  \
+			--verbosity=0 \
+			--model $< \
+			--eval_listfile $(OUTPUT_DIR)/list.eval 2>&1 | Select-String '^BCER eval' | Out-File $@ \
+	}"
+else
+    # Unix-like systems
 	time -p lstmeval  \
 		--verbosity=0 \
 		--model $< \
 		--eval_listfile $(OUTPUT_DIR)/list.eval 2>&1 | grep "^BCER eval" > $@
+endif
 # Make TSV with lstmeval CER and checkpoint filename parts
 TSV_LSTMEVAL = $(OUTPUT_DIR)/lstmeval.tsv
 .INTERMEDIATE: $(TSV_LSTMEVAL)

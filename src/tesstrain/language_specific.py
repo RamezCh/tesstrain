@@ -23,8 +23,8 @@ log = logging.getLogger(__name__)
 # Array of all valid language codes.
 VALID_LANGUAGE_CODES = (
     'afr amh ara asm aze aze_cyrl bel ben bih bod bos bul cat '
-    'ceb ces chi_sim chi_tra chr cym cyr_lid dan deu div dzo '
-    'ell eng enm epo est eus fas fil fin fra frk frm gle glg '
+    'ceb ces chi_sim chi_tra chr cym cyr_lid dan deu deu_latf div '
+    'dzo ell eng enm epo est eus fas fil fin fra  frm gle glg '
     'grc guj hat heb hin hrv hun hye iast iku ind isl ita ita_old '
     'jav jav_java jpn kan kat kat_old kaz khm kir kmr kor kur_ara lao lat '
     'lat_lid lav lit mal mar mkd mlt msa mya nep nld nor ori '
@@ -933,7 +933,7 @@ def set_lang_specific_parameters(ctx, lang):
         ]  # Add ligatures when supported.
         if not FONTS:
             FONTS = EARLY_LATIN_FONTS
-    elif lang == 'frk':
+    elif lang == 'deu_latf':
         TEXT_CORPUS = f'{FLAGS_webtext_prefix}/deu.corpus.txt'
         if not FONTS:
             FONTS = FRAKTUR_FONTS
